@@ -1,4 +1,4 @@
-package programs.logger;
+package logger;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -6,8 +6,6 @@ import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.logging.*;
-
-import static programs.GlobalVariables.LOG_PATH;
 
 public class SimpleLogger {
 
@@ -22,6 +20,8 @@ public class SimpleLogger {
             return "[" + new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(new Date(record.getMillis())) + "][" + record.getLevel() + " - " + record.getMessage() + "\n";
         }
     }
+    // Defualt Log Path
+    private static final String LOG_PATH = System.getProperty("user.dir") + "/log";
 
     // Constructor
     public SimpleLogger() { /* ... */ }
