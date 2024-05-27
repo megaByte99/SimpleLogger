@@ -1,5 +1,7 @@
 package logger;
 
+import logger.custom.SimpleLevel;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -17,7 +19,6 @@ public class SimpleLogger {
 
     // Depth of stack trace
     private static final int DEPTH_LOG_STACK_TRACE = 5;
-    
     // Usage Class Name
     private String className;
     // Java Logger
@@ -30,11 +31,13 @@ public class SimpleLogger {
         }
     }
 
+
     // Constructor
     public SimpleLogger() { /* ... */ }
 
     /**
      * Initialize the SimpleLogger without File Handler
+     * 
      * @param className Name of Class that use the SimpleLogger
      * @return SimpleLogger instance
      */
@@ -43,7 +46,8 @@ public class SimpleLogger {
     }
 
     /**
-     * Initialize the SimpleLogger
+     * Initialize the SimpleLogger class
+     * 
      * @param className Name of Class that use the SimpleLogger
      * @param logPath The path of Log folder
      * @return SimpleLogger instance
@@ -88,28 +92,87 @@ public class SimpleLogger {
         return this;
     }
 
+    /**
+     * Write a message with severity level INFO
+     * 
+     * @param msg The message that will be written in the log file
+     */
     public void info(String msg) {
         writeLog(Level.INFO, msg);
     }
 
+    /**
+     * Write a message with severity level INFO
+     * 
+     * @param msg The message that will be written to log
+     * @param className The name of class that will be appeared in the line
+     */
+    public void info(String msg, String className) {
+        writeLog(Level.INFO, className, msg);
+    }
+
+    /**
+     * Write a message with severity level WARNING
+     * 
+     * @param msg The message that will be written in the log file
+     */
     public void warning(String msg) {
         writeLog(Level.WARNING, msg);
     }
 
-    public void severe(String msg) {
-        writeLog(Level.SEVERE, msg);
+    /**
+     * Write a message with severity level WARNING
+     * 
+     * @param msg The message that will be written to log
+     * @param className The name of class that will be appeared in the line
+     */
+    public void warning(String msg, String className) {
+        writeLog(Level.WARNING, msg);
     }
 
+    /**
+     * Write a message with severity level ERROR
+     * 
+     * @param msg The message that will be written in the log file
+     */
+    public void error(String msg) {
+        writeLog(SimpleLevel.ERROR, msg);
+    }
+
+    /**
+     * Write a message with severity level ERROR
+     * 
+     * @param msg The message that will be written to log
+     * @param className The name of class that will be appeared in the line
+     */
+    public void error(String msg, String className) {
+        writeLog(SimpleLevel.ERROR, msg);
+    }
+
+    /**
+     * Log a message
+     * 
+     * @param level Level of severity
+     * @param msg The message that will be written in the log file
+     */
     public void writeLog(Level level, String msg) {
         writeLog(level, msg, this.className);
     }
 
+    /**
+     * Log a message
+     * 
+     * @param level Level of severity
+     * @param msg The message that will be written in the log file
+     * @param className The name of class that will be appeared in the line
+     */
     public void writeLog(Level level, String msg, String className) {
         logger.log(level, className + ":" + this.getLineNumber() + "] " + msg);
     }
 
     /**
      * Get the current line number.
+     * 
      * @return int - Current line number.
      */
     private int getLineNumber() {
