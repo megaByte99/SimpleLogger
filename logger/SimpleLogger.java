@@ -9,6 +9,15 @@ import java.util.logging.*;
 
 public class SimpleLogger {
 
+    /**
+     * The Default Path where logs are generated. The location is folder log inside project directory.
+     * If it doesn't exist, it will be created automatically.
+     */
+    public static final String DEFAULT_LOG_PATH = System.getProperty("user.dir") + "/log";
+
+    // Depth of stack trace
+    private static final int DEPTH_LOG_STACK_TRACE = 5;
+    
     // Usage Class Name
     private String className;
     // Java Logger
@@ -20,11 +29,18 @@ public class SimpleLogger {
             return "[" + new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(new Date(record.getMillis())) + "][" + record.getLevel() + " - " + record.getMessage() + "\n";
         }
     }
-    // Defualt Log Path
-    private static final String LOG_PATH = System.getProperty("user.dir") + "/log";
 
     // Constructor
     public SimpleLogger() { /* ... */ }
+
+    /**
+     * Initialize the SimpleLogger without File Handler
+     * @param className Name of Class that use the SimpleLogger
+     * @return SimpleLogger instance
+     */
+    public SimpleLogger initLogger(String className) {
+        return initLogger(className, null);
+    }
 
     /**
      * Initialize the SimpleLogger
@@ -46,7 +62,7 @@ public class SimpleLogger {
             // Create the Log folder if logPath is not null
             if (logPath != null) {
                 // If is empty, set default value
-                if (logPath.trim().isEmpty()) logPath = LOG_PATH;
+                if (logPath.trim().isEmpty()) logPath = DEFAULT_LOG_PATH;
                 // Construct the log name
                 String fileLogPath = logPath + "/Run_" + new SimpleDateFormat("dd-MM-yyyy_HHmmss").format(new Date(System.currentTimeMillis())) + ".log";
 
@@ -98,9 +114,7 @@ public class SimpleLogger {
      */
     private int getLineNumber() {
         return Thread.currentThread()
-                .getStackTrace()[3]
+                .getStackTrace()[DEPTH_LOG_STACK_TRACE]
                 .getLineNumber();
     }
-
 }
-
