@@ -3,6 +3,7 @@ package it.simple.logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.MessageFormat;
 import java.time.LocalDate;
@@ -126,7 +127,7 @@ public class SimpleLogger {
     /**
      * The default location of the log directory
      */
-    private static final String DEFAULT_LOG_PATH        = System.getProperty("user.dir") + "/log";;
+    public static final Path DEFAULT_LOG_PATH        = Paths.get(System.getProperty("user.dir") + "/log");
 
     /**
      * The position within {@link Thread#getStackTrace()} array where the log method call is contained.
@@ -163,7 +164,7 @@ public class SimpleLogger {
      * Create a new instance of {@code SimpleLogger}.
      *
      * @param loggerName name of the Logger
-     * @param dirLogPath the path to the log directory. If {@code dirLogPath} is empty, set a default value to {@link #DEFAULT_PATH}
+     * @param dirLogPath the path to the log directory
      * @return a new SimpleLogger's instance
      */
     public static SimpleLogger createLogger(String loggerName, Path dirLogPath) {
@@ -183,7 +184,7 @@ public class SimpleLogger {
      * create the directory and the file of log
      *
      * @param loggerName name of the Logger
-     * @param dirLogPath the path to the log directory. If {@code dirLogPath} is empty, set a default value to {@link #DEFAULT_PATH}
+     * @param dirLogPath the path to the log directory.
      * @throws Exception if the directory or file creation goes wrong.
      */
     private void init(String loggerName, Path dirLogPath) throws Exception {
