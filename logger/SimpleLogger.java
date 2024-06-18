@@ -1,235 +1,270 @@
 package it.simple.logger;
 
-import org.jetbrains.annotations.NotNull;
-
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.Optional;
-import java.util.logging.*;
+import java.nio.file.StandardOpenOption;
+import java.text.MessageFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ResourceBundle;
+import java.lang.System.Logger.Level;
 
+/**
+ * <p style="text-align:justify;">
+ * The {@code SimpleLogger} is a very simple logger with basic functionality:
+ * <ul>
+ *    <li>Log of messages displayed on console (Always active);</li>
+ *    <li>Log of messages written to a log file (Configurable during the creation of the class).</li>
+ * </ul>
+ * </p>
+ * <br/>
+ * The {@code SimpleLogger} is not customizable through a {@code .properties} file, because it use a internal message
+ * formatter and the name of the file generated is not customizable either.
+ * Is not the purpose of the class.
+ * <br/>
+ * @version 1.0
+ */
 public class SimpleLogger {
 
     /**
-     * This constant is used to tell SimpleLogger not to create a log file
+     * The private class {@code CoreLogger} represents the core of the main {@link SimpleLogger} class.
      */
-    public static final String NO_FILE = "NoFileHandler";
+    private class CoreLogger implements System.Logger {
 
-    // By default, log will be created inside project folder.
-    private static final String DEFAULT_LOG_PATH = System.getProperty("user.dir") + "/log";
-    /**
-     * Depth of stack trace. The depth depends on how many function are called.
-     * <li>
-     *     Example:
-     *     <ul>0 = Line of return array of StackTrace in {@code getStackTrace()}</ul>
-     *     <ul>1 = Line of where {@code getStackTrace()} is called</ul>
-     *     <ul>2 = Line of where the function that contains the call of {@code getStackTrace()} is called</ul>
-     *     <ul>Etc..</ul>
-     * </li>
-     */
-    private static final int DEPTH_LOG_STACK_TRACE = 4;
-    // Java Logger
-    private Logger logger;
-    // Name of class printed to log
-    private String className;
-    // Location of log file
-    private String path;
-
-    // ------------------------ Custom Classes ------------------------
-    // Custom Formatter
-    private static class CustomFormatter extends Formatter {
         @Override
-        public String format(LogRecord record) {
-            return "[" + new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(new Date(record.getMillis())) + "][" + record.getLevel() + " - " + record.getMessage() + "\n";
+        public String getName() { return ""; }
+
+        @Override
+        public boolean isLoggable(Level level) { return false; }
+
+        @Override
+        public void log(Level level, ResourceBundle bundle, String msg, Throwable thrown) { /* ... */ }
+
+        /**
+         * Logs a message with resource bundle and an optional list of
+         * parameters.
+         * <p>
+         * If the given resource bundle is non-{@code null},  the {@code format}
+         * string is localized using the given resource bundle.
+         * Otherwise the {@code format} string is not localized.
+         *
+         * @param level  the log message level.
+         * @param bundle a resource bundle to localize {@code format}; can be
+         *               {@code null}.
+         * @param format the string message format in {@link
+         *               MessageFormat} format, (or a key in the message
+         *               catalog if {@code bundle} is not {@code null}); can be {@code null}.
+         * @param params an optional list of parameters to the message (may be
+         *               none).
+         * @throws NullPointerException if {@code level} is {@code null}.
+         */
+        @Override
+        public void log(Level level, ResourceBundle bundle, String format, Object... params) {
+            String s_params = "";
+            if (params != null && params.length > 0)
+                s_params = params[0].toString();
+
+
+            // Get the line number of where the method was called
+            int lineNumber = (s_params.equals(START_LOG)) ? 0 : Thread.currentThread().getStackTrace()[DEPTH_LOG_STACK_TRACE].getLineNumber();
+
+            // Format the message
+            String message = String.format(FORMATTED_MESSAGE,
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"))
+                    , level.getName()
+                    , (s_params.equals(START_LOG)) ? "SimpleLogger" : loggerName
+                    , lineNumber
+                    , (format == null) ? "Empty Message" : format
+            );
+
+            // Print Message to console
+            System.out.print(message);
+
+            // Write to file
+            if (writeToFile && !s_params.equals("File Error")) {
+                try {
+                    Files.writeString(fileLogPath, message, StandardOpenOption.APPEND);
+                } catch (IOException e) {
+                    this.log(Level.ERROR, null, this.printException(e), new Object[]{"File Error"});
+                }
+            }
+        }
+
+        /**
+         * <p style="text-align:justify;">
+         * Format the message generated by {@link Exception} by creating a sort of tree view using the {@code '\t' char}
+         * with the main message at the beginning and below all the {@link StackTraceElement}
+         * </p>
+         * @param ex the {@link Exception} that was thrown
+         * @return the formatted {@link Exception} message
+         */
+        public String printException(Exception ex) {
+            StringBuilder exceptionMessage = new StringBuilder("Exception " + ex.toString() + " at:\n");
+
+            for (StackTraceElement e : ex.getStackTrace())
+                exceptionMessage.append("\t\t").append(e.toString()).append("\n");
+
+            return exceptionMessage.toString();
         }
     }
 
-    // Custom Level
-    private static class SimpleLevel extends Level {
-        protected SimpleLevel(String name, int value) {
-            super(name, value);
-        }
-    }
+    // Logger
+    private CoreLogger coreLogger;
 
     /**
-     * ERROR is a message level that represent that something gone wrong.
-     * Is similar to SEVERE Level but the value is more high. It should be used to display possible errors.
+     * The structure of log file name: {@code Run_yyyy-MM-dd.log} where the date correspond to today
      */
-    public static final SimpleLevel ERROR = new SimpleLevel("ERROR", 1100);
-
-    // Constructor
-    protected SimpleLogger() {}
+    private static final String LOG_FILE_NAME           = "Run_%s.log";
 
     /**
-     * <p style="text-align: justify">
-     * Create a new instance of {@link SimpleLogger}.<br/>
-     * When the {@code path} parameter is set with the value of the constant {@link #NO_FILE}, the log file is not
-     * created. If instead is set with an empty string or null, the file will be created inside the project folder.
-     * The {@link SimpleLogger} should be declared in main class and passed by parameter in other classes.
-     * It provided of function with {@code classname} as parameter to log message from other classes.
-     * </p>
+     * The structure of log message.
+     */
+    private static final String FORMATTED_MESSAGE       = "[%s][%s - %s:%d] %s\n";
+
+    /**
+     * The default location of the log directory
+     */
+    private static final String DEFAULT_LOG_PATH        = System.getProperty("user.dir") + "/log";;
+
+    /**
+     * The position within {@link Thread#getStackTrace()} array where the log method call is contained.
+     */
+    private static final int    DEPTH_LOG_STACK_TRACE   = 4;
+
+    // Variables
+    private final String START_LOG = "Start Log";
+
+    // Logger Name
+    private String loggerName;
+
+    // Path of file log
+    private Path fileLogPath;
+
+    private boolean writeToFile = false;
+
+    /**
+     * Empty constructor
+     */
+    protected SimpleLogger() { /* ... */ }
+
+    /**
+     * Create a new instance of {@link SimpleLogger} without File handler.
      *
-     * @param className The name of class
-     * @param path The location of folder where put the file.
-     * @return A new instance of SimpleLogger
+     * @param loggerName name of the Logger
+     * @return instance of {@link SimpleLogger}
      */
-    public static SimpleLogger create(String className, String path) {
-        // Create an instance of SimpleLogger
+    public static SimpleLogger createLogger(String loggerName) {
+        return SimpleLogger.createLogger(loggerName, null);
+    }
+
+    /**
+     * Create a new instance of {@code SimpleLogger}.
+     *
+     * @param loggerName name of the Logger
+     * @param dirLogPath the path to the log directory. If {@code dirLogPath} is empty, set a default value to {@link #DEFAULT_PATH}
+     * @return a new SimpleLogger's instance
+     */
+    public static SimpleLogger createLogger(String loggerName, Path dirLogPath) {
         SimpleLogger instance = new SimpleLogger();
+
         try {
-            instance.build(className, path);
+            instance.init(loggerName, dirLogPath);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
         return instance;
     }
 
     /**
-     * <p style="text-align: justify;">
-     * Build the {@link SimpleLogger}.
-     * </p>
-     * @param className The name of class
-     * @param path The location of folder where put the file.
-     * @throws Exception If something goes wrong.
+     * Create a new instance of CoreLogger and, if the {@code dirLogPath} is not null,
+     * create the directory and the file of log
+     *
+     * @param loggerName name of the Logger
+     * @param dirLogPath the path to the log directory. If {@code dirLogPath} is empty, set a default value to {@link #DEFAULT_PATH}
+     * @throws Exception if the directory or file creation goes wrong.
      */
-    private void build(String className, String path) throws Exception {
-        this.className = className;
-        // Java Logger initialization
-        this.logger = Logger.getLogger(this.className);
-        // Remove all default formatters
-        LogManager.getLogManager().reset();
-        // Create the new custom formatter
-        CustomFormatter customFormatter = new CustomFormatter();
+    private void init(String loggerName, Path dirLogPath) throws Exception {
+        this.loggerName = loggerName;
+        this.coreLogger = new CoreLogger();
 
-        // Create and add Console Handler
-        ConsoleHandler cHandler = new ConsoleHandler();
-        cHandler.setFormatter(customFormatter);
-        logger.addHandler(cHandler);
+        if (dirLogPath != null) {
+            if (Files.notExists(dirLogPath)) Files.createDirectory(dirLogPath);
 
-        // Avoid NullPointerException
-        path = Optional.ofNullable(path).orElse("");
-        // Check if user want to create a log file
-        if (!path.equals(NO_FILE)) {
-            // If is empty, set default location
-            if (path.trim().isEmpty()) path = DEFAULT_LOG_PATH;
-            this.path = path;
-            // Construct the log name
-            String fileLogPath = path + "/Run_" + new SimpleDateFormat("dd-MM-yyyy_HHmmss").format(new Date(System.currentTimeMillis())) + ".log";
+            String formattedDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+            this.fileLogPath = dirLogPath.resolve(String.format(LOG_FILE_NAME, formattedDate));
 
-            // Create the folder if not exists
-            Path log_path = Paths.get(path);
-            if (!Files.exists(log_path))
-                Files.createDirectory(log_path);
+            if (Files.notExists(fileLogPath)) Files.createFile(fileLogPath);
 
-            // Create and add File Handler
-            FileHandler fHandler = new FileHandler(fileLogPath, true);
-            fHandler.setFormatter(customFormatter);
-            logger.addHandler(fHandler);
+            writeToFile = true;
         }
     }
 
+    /**
+     * Log a header. It should be used to divide one run of code from another.
+     */
+    public void printLogHeader() {
+        coreLogger.log(Level.INFO, null, String.format(
+                        "===================== Start Logging - %s =====================",
+                        LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"))
+                ),
+                new Object[]{START_LOG}
+        );
+    }
 
     /**
-     * Log a message<br/>
-     * This function is the basis of all others write functions.
+     * Print an INFO Log message.
      *
-     * @param level The level of message
-     * @param msg The message that will be written
-     * @param className The name of class that will be displayed on log message
+     * @param message The Log message.
      */
-    private void write(Level level, String msg, String className) {
-        logger.log(level, className + ":" + this.getLineNumber() + "] " + msg);
+    public void info(String message) {
+        coreLogger.log(Level.INFO, message);
     }
 
     /**
-     * Log an INFO message.
+     * Print a WARNING Log message.
      *
-     * @param msg The message that will be written
+     * @param message The Log message.
      */
-    public void info(String msg) {
-        this.write(Level.INFO, msg, this.className);
+    public void warning(String message) {
+        coreLogger.log(Level.WARNING, message);
     }
 
     /**
-     * Log an INFO message. It can be used to other classes.
+     * Print an ERROR Log message.
      *
-     * @param msg The message that will be written
-     * @param className The name of class that will be displayed on log message
+     * @param message The Log message.
      */
-    public void info(String msg, String className) {
-        this.write(Level.INFO, msg, className);
+    public void error(String message) {
+        coreLogger.log(Level.ERROR, message);
     }
 
     /**
-     * Log an WARNING message.
+     * Print a DEBUG Log message.
      *
-     * @param msg The message that will be written
+     * @param message The Log message.
      */
-    public void warning(String msg) {
-        this.write(Level.WARNING, msg, this.className);
+    public void debug(String message) {
+        coreLogger.log(Level.DEBUG, message);
     }
 
     /**
-     * Log an WARNING message. It can be used to other classes.
+     * Print a TRACE Log message.
      *
-     * @param msg The message that will be written
-     * @param className The name of class that will be displayed on log message
+     * @param message The Log message.
      */
-    public void warning(String msg, String className) {
-        this.write(Level.WARNING, msg, className);
+    public void trace(String message) {
+        coreLogger.log(Level.TRACE, message);
     }
 
     /**
-     * Log an ERROR message.
-     *
-     * @param msg The message that will be written
+     * Print an Exception.
+     * @param e The Exception thrown inside code.
      */
-    public void error(String msg) {
-        this.write(ERROR, msg, this.className);
-    }
-
-    /**
-     * Log an ERROR message. It can be used to other classes.
-     *
-     * @param msg The message that will be written
-     * @param className The name of class that will be displayed on log message
-     */
-    public void error(String msg, String className) {
-        this.write(ERROR, msg, className);
-    }
-
-    public void logStackTrace(@NotNull Exception e) {
-        StringBuilder message = new StringBuilder(e.getMessage() + " at:\n");
-        // Get the stacktrace that contains the class name
-        StackTraceElement[] filteredElement = Arrays.stream(e.getStackTrace())
-                .filter((ex) -> ex.toString().contains(this.className))
-                .toArray(StackTraceElement[]::new);
-
-        for (StackTraceElement ex : filteredElement)
-            message.append(ex.toString()).append("\n");
-
-        this.write(ERROR, message.substring(0, message.lastIndexOf("\n")), this.className);
-    }
-
-    /**
-     * Get the current line number inside the code.
-     *
-     * @return int - Current line number.
-     */
-    private int getLineNumber() {
-        return Thread.currentThread()
-                .getStackTrace()[DEPTH_LOG_STACK_TRACE]
-                .getLineNumber();
-    }
-
-    /**
-     * @return The location of log file
-     */
-    public String getPath() {
-        return this.path;
+    public void exception(Exception e) {
+        coreLogger.printException(e);
     }
 
 }
