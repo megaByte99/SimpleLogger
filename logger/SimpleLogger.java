@@ -259,13 +259,16 @@ public class SimpleLogger {
     public void trace(String message) {
         coreLogger.log(Level.TRACE, message);
     }
-
     /**
      * Print an Exception.
      * @param e The Exception thrown inside code.
      */
     public void exception(Exception e) {
-        coreLogger.printException(e);
+        coreLogger.log(Level.ERROR, coreLogger.printException(e));
     }
 
+    @Override
+    public String toString() {
+        return "SimpleLogger: Name = " + this.loggerName;
+    }
 }
